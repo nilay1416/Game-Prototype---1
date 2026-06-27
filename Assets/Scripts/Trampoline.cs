@@ -4,21 +4,62 @@ using UnityEngine;
 
 public class Trampoline : MonoBehaviour
 {
-    [Tooltip("The vertical velocity force applied to the character controller.")]
-    public float bounceForce = 22f;
+    [Header("Bouncing Settings")]
+    public float launchForce = 20f;
 
-    // Use Trigger execution since CharacterControllers don't trip OnCollisionEnter
-    private void OnTriggerEnter(Collider other)
+    [Header("Visual Juice (Optional)")]
+    public float bounceSquishDuration = 0.1f;
+    private Vector3 originalScale;
+
+    void Start()
     {
-        if (other.CompareTag("Player"))
-        {
-            ThirdPersonController playerController = other.GetComponent<ThirdPersonController>();
+        originalScale = transform.localScale;
+    }
 
-            if (playerController != null)
-            {
-                // Call our new upward launch hook inside the player script
-                playerController.LaunchUpward(bounceForce);
-            }
+    private void OnCollisionEnter(Collision collision)
+    {
+        // Get the Rigidbody of whatever landed on the trampoline (Player or Enemy)
+        Rigidbody rb = collision.gameObject.GetComponent<Rigidbody>();
+
+        if (rb != null)
+        {
+            // 1. Snappy Physics Trick:
+            // Zero out the incoming vertical velocity so the player doesn't absorb the bounce.
+            // This ensures they always fly up to the exact same height regardless of how far they fell.
+            Vector3 currentVel = rb.velocity;
+            rb.velocity = new Vector3(currentVel.x, 0f, currentVel.z);
+
+            // 2. Launch the object straight up using an Impulse force
+            rb.AddForce(Vector3.up * launchForce, ForceMode.Impulse);
+
+            // 3. Trigger a quick visual bounce effect
+            StopAllCoroutines();
+            StartCoroutine(VisualBounceEffect());
         }
+    }
+
+    private System.Collections.IEnumerator VisualBounceEffect()
+    {
+        // Quickly squish the trampoline down
+        Vector3 squishedScale = new Vector3(originalScale.x * 1.2f, originalScale.y * 0.4f, originalScale.z * 1.2f);
+        float elapsed = 0f;
+
+        while (elapsed < bounceSquishDuration)
+        {
+            transform.localScale = Vector3.Lerp(originalScale, squishedScale, elapsed / bounceSquishDuration);
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+
+        // Snap back to the original size smoothly
+        elapsed = 0f;
+        while (elapsed < bounceSquishDuration * 2f)
+        {
+            transform.localScale = Vector3.Lerp(squishedScale, originalScale, elapsed / (bounceSquishDuration * 2f));
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+
+        transform.localScale = originalScale;
     }
 }
