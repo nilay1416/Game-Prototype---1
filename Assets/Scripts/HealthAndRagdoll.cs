@@ -4,14 +4,18 @@ using UnityEngine;
 
 public class HealthAndRagdoll : MonoBehaviour
 {
-    [Header("Life Settings")]
-    public int maxHealth = 3;
-    private int currentHealth;
-    public float respawnDelay = 2f;
-    public float fallThreshold = -10f; // Map boundary Y level
+    [Header("Percentage Life Settings")]
+    public float maxHealth = 100f;
+    public float currentHealth { get; private set; }
+    public float respawnDelay = 3f;
+    public float fallThreshold = -10f;
+
+    [Header("Automated UI Link")]
+    [Tooltip("Drag your FloatingHealthBar UI Prefab asset here. The script will handle creating slots for enemies automatically!")]
+    public GameObject healthBarPrefab;
 
     [Header("Stumble Settings")]
-    public float stumbleDuration = 2.5f;
+    public float baseStumbleDuration = 2f;
 
     private Rigidbody rb;
     private ThirdPersonController playerMove;
@@ -19,7 +23,6 @@ public class HealthAndRagdoll : MonoBehaviour
     private Vector3 spawnPoint;
     private bool isRagdolled = false;
 
-    // Disabled components can still have their variables read safely
     public bool isGrounded => playerMove != null ? playerMove.isGrounded : (enemyAI != null ? enemyAI.isGrounded : true);
 
     void Start()
@@ -29,27 +32,61 @@ public class HealthAndRagdoll : MonoBehaviour
         enemyAI = GetComponent<EnemyAI>();
         spawnPoint = transform.position;
         currentHealth = maxHealth;
+
+        // AUTO-INITIALIZATION: Spawns the health bar for ALL characters automatically on frame 1
+        if (healthBarPrefab != null)
+        {
+            Canvas mainCanvas = FindObjectOfType<Canvas>();
+            if (mainCanvas != null)
+            {
+                GameObject barGo = Instantiate(healthBarPrefab, mainCanvas.transform);
+                FloatingHealthBar barScript = barGo.GetComponent<FloatingHealthBar>();
+                if (barScript != null)
+                {
+                    barScript.InitializeTarget(this);
+                }
+            }
+        }
     }
 
     void Update()
     {
-        // Out of bounds check
         if (transform.position.y < fallThreshold && !isRagdolled)
         {
-            StartCoroutine(RespawnSequence(true)); // Instant out-of-bounds respawn rule
+            StartCoroutine(RespawnSequence());
         }
     }
 
-    public void TakeDamage(int amount, Vector3 knockbackForce)
+    public void TakeDamage(float damageAmount, Vector3 baseKnockbackForce)
     {
-        if (isRagdolled) return;
+        if (isRagdolled && currentHealth <= 0) return;
 
-        currentHealth -= amount;
-        TriggerRagdoll(knockbackForce);
+        currentHealth = Mathf.Max(0f, currentHealth - damageAmount);
 
-        if (currentHealth <= 0)
+        // STUMBLE & KNOCKBACK INTENSITY MODIFIERS (Matching your exact chart)
+        float knockbackMultiplier = 1f;
+
+        if (currentHealth >= 65f)
         {
-            StartCoroutine(RespawnSequence(false));
+            // Green Tier: Minor stumble on the same position
+            knockbackMultiplier = 0.35f;
+        }
+        else if (currentHealth < 65f && currentHealth >= 30f)
+        {
+            // Yellow Tier: Medium knockback, slides back a few meters
+            knockbackMultiplier = 2.2f;
+        }
+        else if (currentHealth < 30f)
+        {
+            // Red Tier: Baseball Home-Run Mode! Launched straight out of the map
+            knockbackMultiplier = 8.5f;
+        }
+
+        TriggerRagdoll(baseKnockbackForce * knockbackMultiplier);
+
+        if (currentHealth <= 0f)
+        {
+            StartCoroutine(RespawnSequence());
         }
         else
         {
@@ -61,37 +98,32 @@ public class HealthAndRagdoll : MonoBehaviour
     {
         isRagdolled = true;
 
-        // Clean Fix: Disable the movement component directly to kill input instantly
         if (playerMove != null) playerMove.enabled = false;
         if (enemyAI != null) enemyAI.SetControllable(false);
 
-        // Unfreeze rotations so the capsule turns floppy, rolls, and slides dramatically
         rb.constraints = RigidbodyConstraints.None;
-
-        // Apply physics impact
         rb.AddForce(force, ForceMode.Impulse);
         rb.AddTorque(Random.insideUnitSphere * force.magnitude, ForceMode.Impulse);
     }
 
     IEnumerator RecoverFromStumble()
     {
-        yield return new WaitForSeconds(stumbleDuration);
+        yield return new WaitForSeconds(baseStumbleDuration);
 
-        if (currentHealth > 0)
+        if (currentHealth > 0f)
         {
-            // Stand the capsule back up smoothly
             transform.rotation = Quaternion.identity;
             rb.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
+            rb.velocity = Vector3.zero;
             rb.angularVelocity = Vector3.zero;
 
-            // Re-enable components
             if (playerMove != null) playerMove.enabled = true;
             if (enemyAI != null) enemyAI.SetControllable(true);
             isRagdolled = false;
         }
     }
 
-    IEnumerator RespawnSequence(bool fellOutOfMap)
+    IEnumerator RespawnSequence()
     {
         isRagdolled = true;
         if (playerMove != null) playerMove.enabled = false;
@@ -99,7 +131,6 @@ public class HealthAndRagdoll : MonoBehaviour
 
         yield return new WaitForSeconds(respawnDelay);
 
-        // Reset parameters
         transform.position = spawnPoint;
         transform.rotation = Quaternion.identity;
         rb.velocity = Vector3.zero;
@@ -115,13 +146,23 @@ public class HealthAndRagdoll : MonoBehaviour
 
     private void OnCollisionEnter(Collision collision)
     {
-        // Handle custom tagged obstacles that cause player to trip/slide
-        if (collision.gameObject.CompareTag("TripObstacle") && !isRagdolled)
+        if (isRagdolled) return;
+
+        // 1. TRIP OBSTACLES: Fall Guys stumble style based on moving obstacle directions, NO damage
+        if (collision.gameObject.CompareTag("TripObstacle"))
         {
-            // Apply a minor backward trip force based on current incoming velocity
-            Vector3 tripForce = -rb.velocity * 1.5f + Vector3.up * 2f;
-            TriggerRagdoll(tripForce);
+            Vector3 stumblePushForce = (transform.position - collision.transform.position).normalized * 12f;
+            stumblePushForce.y = 4f;
+            TriggerRagdoll(stumblePushForce);
             StartCoroutine(RecoverFromStumble());
+        }
+
+        // 2. DAMAGING TRAPS: Deducts exactly 20 HP and triggers health tracking scale updates
+        if (collision.gameObject.CompareTag("DamagingTrap"))
+        {
+            Vector3 trapForce = (transform.position - collision.transform.position).normalized * 10f;
+            trapForce.y = 3.5f;
+            TakeDamage(20f, trapForce);
         }
     }
 }

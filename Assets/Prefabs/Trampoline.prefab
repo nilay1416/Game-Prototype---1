@@ -13,7 +13,7 @@ GameObject:
   - component: {fileID: 9174998170153172037}
   - component: {fileID: 2810264374936234597}
   - component: {fileID: 2245602488618211492}
-  m_Layer: 7
+  m_Layer: 6
   m_Name: Trampoline
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -118,5 +118,5 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3267e5c77ba221b46b3aa2e8e552d686, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  launchForce: 50
+  launchForce: 25
   bounceSquishDuration: 0.1

@@ -230,7 +230,7 @@ GameObject:
   - component: {fileID: 1931042247606687527}
   m_Layer: 0
   m_Name: Rotor
-  m_TagString: MovingObstacle
+  m_TagString: TripObstacle
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -245,8 +245,8 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 131.8, y: -1.4563743, z: 0.070008025}
-  m_LocalScale: {x: 3.3333335, y: 1.6444299, z: 3.278151}
-  m_ConstrainProportionsScale: 0
+  m_LocalScale: {x: 2.46, y: 1.2135892, z: 2.4192753}
+  m_ConstrainProportionsScale: 1
   m_Children:
   - {fileID: 6993978408240975399}
   - {fileID: 8769031611622816363}

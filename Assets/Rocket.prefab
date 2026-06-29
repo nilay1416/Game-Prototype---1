@@ -31,7 +31,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0.19, y: 0.76864, z: 1.57}
-  m_LocalScale: {x: 1.8, y: 1.8, z: 1.8}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 0}
@@ -146,6 +146,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2cd62aad75dd3a84c8c36eb1a72d3123, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  speed: 12
-  turnSpeed: 2
-  baseKnockbackForce: 25
+  speed: 15
+  turnSpeed: 3.5
+  usePrediction: 1
+  predictionScale: 0.12
+  explosionRadius: 5
+  rocketDamage: 35
+  baseBlastForce: 30
+  maxLifetime: 5
+  explosionParticlePrefab: {fileID: 0}

@@ -19,12 +19,12 @@ public class EnemyAI : MonoBehaviour
     [Tooltip("Brings the AI down to earth quickly, matching player gravity properties.")]
     public float fallMultiplier = 3.5f;
     public float groundCheckDistance = 1.1f;
-    public LayerMask groundLayer; // <-- THIS WILL NOW SHOW UP
+    public LayerMask groundLayer; // Used for both staying grounded and checking walls ahead!
 
     [Header("AI Jump Navigation")]
     [Tooltip("Point near the shins/knees to check for walls or hurdles.")]
     public Transform obstacleCheckPoint;
-    public LayerMask obstacleLayer;
+    [Tooltip("How far forward the AI checks for walls on the Ground layer to jump.")]
     public float obstacleCheckDistance = 1.2f;
 
     [Header("Distance-Based Dash")]
@@ -63,7 +63,6 @@ public class EnemyAI : MonoBehaviour
     {
         if (!aiActive || playerTarget == null) return;
 
-        // Uses the new customizable ground check parameters
         isGrounded = Physics.Raycast(transform.position, Vector3.down, groundCheckDistance, groundLayer);
 
         attackTimer += Time.deltaTime;
@@ -71,7 +70,14 @@ public class EnemyAI : MonoBehaviour
 
         if (distanceToPlayer <= shootingRange && attackTimer >= attackRate && !isDashing)
         {
-            launcher.TryFire();
+            if (launcher != null)
+            {
+                launcher.TryFire(playerTarget);
+            }
+            else
+            {
+                Debug.LogWarning($"[EnemyAI] {gameObject.name} is trying to shoot but is missing a RocketLauncher component!");
+            }
             attackTimer = 0f;
         }
 
@@ -80,9 +86,10 @@ public class EnemyAI : MonoBehaviour
             StartCoroutine(PerformAIDistanceDash());
         }
 
+        // FIXED: The forward detection raycast now scans your groundLayer instead of obstacleLayer
         if (isGrounded && obstacleCheckPoint != null)
         {
-            if (Physics.Raycast(obstacleCheckPoint.position, transform.forward, obstacleCheckDistance, obstacleLayer))
+            if (Physics.Raycast(obstacleCheckPoint.position, transform.forward, obstacleCheckDistance, groundLayer))
             {
                 Jump();
             }
@@ -104,7 +111,6 @@ public class EnemyAI : MonoBehaviour
         velocityChange.y = 0;
         rb.AddForce(velocityChange, ForceMode.VelocityChange);
 
-        // Fast-fall gravity parity
         if (rb.velocity.y < 0)
         {
             rb.velocity += Vector3.up * Physics.gravity.y * (fallMultiplier - 1) * Time.fixedDeltaTime;

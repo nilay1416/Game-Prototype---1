@@ -4,9 +4,10 @@
 TagManager:
   serializedVersion: 2
   tags:
-  - MovingObstacle
   - TripObstacle
   - Enemy
+  - DamagingTrap
+  - FxTemporaire
   layers:
   - Default
   - TransparentFX
