@@ -146,12 +146,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2cd62aad75dd3a84c8c36eb1a72d3123, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  speed: 15
+  speed: 25
   turnSpeed: 3.5
   usePrediction: 1
   predictionScale: 0.12
+  homingDisableDistance: 2.5
+  maxHomingDuration: 1.5
   explosionRadius: 5
   rocketDamage: 35
   baseBlastForce: 30
-  maxLifetime: 5
+  maxLifetime: 4
+  obstacleLayers:
+    serializedVersion: 2
+    m_Bits: 128
   explosionParticlePrefab: {fileID: 0}
+  explosionSoundClip: {fileID: 0}

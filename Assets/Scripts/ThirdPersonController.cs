@@ -21,6 +21,12 @@ public class ThirdPersonController : MonoBehaviour
     public float dashDuration = 0.15f;
     public float dashCooldown = 1.2f;
 
+    [Header("Audio Configurations")]
+    [Tooltip("Audio source component responsible for playing your jump and dash bursts.")]
+    public AudioSource oneShotAudioSource;
+    public AudioClip jumpSoundClip;
+    public AudioClip dashSoundClip;
+
     private Rigidbody rb;
     private Transform mainCameraTransform;
     private Vector3 moveInput;
@@ -81,13 +87,8 @@ public class ThirdPersonController : MonoBehaviour
     {
         if (isDead || isDashing) return;
 
-        // --- GLITCH FIX: COMPLETE ROTATIONAL ANCHOR LOCK ---
-        // Forcefully wipes out any spinning torque physics glitches gathered from bridges/platforms
         rb.angularVelocity = Vector3.zero;
-
-        // Locks your character to a strict upright vertical alignment, stopping random tilting loops completely
         transform.rotation = Quaternion.Euler(0f, transform.rotation.eulerAngles.y, 0f);
-        // ----------------------------------------------------
 
         Vector3 targetVelocity = moveInput * moveSpeed;
         Vector3 currentVelocity = rb.velocity;
@@ -112,6 +113,12 @@ public class ThirdPersonController : MonoBehaviour
     {
         rb.velocity = new Vector3(rb.velocity.x, 0f, rb.velocity.z);
         rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+
+        // Fires on explicit Spacebar pop
+        if (oneShotAudioSource != null && jumpSoundClip != null)
+        {
+            oneShotAudioSource.PlayOneShot(jumpSoundClip);
+        }
     }
 
     IEnumerator PerformDistanceDash()
@@ -120,6 +127,12 @@ public class ThirdPersonController : MonoBehaviour
         Vector3 dashDirection = moveInput != Vector3.zero ? moveInput : transform.forward;
         dashDirection.y = 0;
         dashDirection.Normalize();
+
+        // Fires on Left-Shift press
+        if (oneShotAudioSource != null && dashSoundClip != null)
+        {
+            oneShotAudioSource.PlayOneShot(dashSoundClip);
+        }
 
         float dashVelocity = dashDistance / dashDuration;
         float elapsedTime = 0f;

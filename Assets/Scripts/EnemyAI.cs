@@ -5,8 +5,12 @@ using UnityEngine;
 [RequireComponent(typeof(Rigidbody))]
 public class EnemyAI : MonoBehaviour
 {
-    [Header("Target Tracking")]
+    [Header("Target Tracking & Senses")]
     public Transform playerTarget;
+    [Tooltip("How close the player must get to alert the AI for the first time.")]
+    public float detectionRange = 25f;
+    [Tooltip("The sweet-spot distance the AI tries to maintain to shoot from afar without getting too close.")]
+    public float maintainDistance = 10f;
     [Tooltip("Matches the player's top movement speed.")]
     public float moveSpeed = 14f;
     [Tooltip("How fast the AI turns to face its movement vector.")]
@@ -19,7 +23,7 @@ public class EnemyAI : MonoBehaviour
     [Tooltip("Brings the AI down to earth quickly, matching player gravity properties.")]
     public float fallMultiplier = 3.5f;
     public float groundCheckDistance = 1.1f;
-    public LayerMask groundLayer; // Used for both staying grounded and checking walls ahead!
+    public LayerMask groundLayer;
 
     [Header("AI Jump Navigation")]
     [Tooltip("Point near the shins/knees to check for walls or hurdles.")]
@@ -33,17 +37,19 @@ public class EnemyAI : MonoBehaviour
     public float dashDuration = 0.15f;
     public float dashCooldown = 2.5f;
 
+    [Header("Tracking Status Tracking (Read Only)")]
+    public bool isChasing = false;
+    public bool isGrounded;
+
     private Rigidbody rb;
     private RocketLauncher launcher;
+    private HealthAndRagdoll playerHealth;
     private Vector3 moveDirection;
 
     private bool canDash = true;
     private bool isDashing = false;
     private bool aiActive = true;
     private float attackTimer;
-
-    [Header("Debug Status (Read Only)")]
-    public bool isGrounded;
 
     void Start()
     {
@@ -57,6 +63,12 @@ public class EnemyAI : MonoBehaviour
             GameObject player = GameObject.FindGameObjectWithTag("Player");
             if (player != null) playerTarget = player.transform;
         }
+
+        // Cache the player's health reference to monitor death states cleanly
+        if (playerTarget != null)
+        {
+            playerHealth = playerTarget.GetComponent<HealthAndRagdoll>();
+        }
     }
 
     void Update()
@@ -65,29 +77,45 @@ public class EnemyAI : MonoBehaviour
 
         isGrounded = Physics.Raycast(transform.position, Vector3.down, groundCheckDistance, groundLayer);
 
-        attackTimer += Time.deltaTime;
         float distanceToPlayer = Vector3.Distance(transform.position, playerTarget.position);
 
-        if (distanceToPlayer <= shootingRange && attackTimer >= attackRate && !isDashing)
+        // --- RESET AGGRO SYSTEM UPON PLAYER DEATH ---
+        if (playerHealth != null && playerHealth.currentHealth <= 0f)
         {
-            if (launcher != null)
-            {
-                launcher.TryFire(playerTarget);
-            }
-            else
-            {
-                Debug.LogWarning($"[EnemyAI] {gameObject.name} is trying to shoot but is missing a RocketLauncher component!");
-            }
-            attackTimer = 0f;
+            isChasing = false;
         }
 
-        if (enableAIDashing && canDash && !isDashing && distanceToPlayer > shootingRange)
+        // --- SENSORY DETECTION CHECK ---
+        if (!isChasing)
         {
-            StartCoroutine(PerformAIDistanceDash());
+            // Only trigger chase state if player is within range and alive
+            if (distanceToPlayer <= detectionRange && (playerHealth == null || playerHealth.currentHealth > 0f))
+            {
+                isChasing = true;
+            }
         }
 
-        // FIXED: The forward detection raycast now scans your groundLayer instead of obstacleLayer
-        if (isGrounded && obstacleCheckPoint != null)
+        // Only fire weapons if AI has actively spotted the player
+        if (isChasing)
+        {
+            attackTimer += Time.deltaTime;
+
+            if (distanceToPlayer <= shootingRange && attackTimer >= attackRate && !isDashing)
+            {
+                if (launcher != null)
+                {
+                    launcher.TryFire(playerTarget);
+                }
+                attackTimer = 0f;
+            }
+
+            if (enableAIDashing && canDash && !isDashing && distanceToPlayer > shootingRange)
+            {
+                StartCoroutine(PerformAIDistanceDash());
+            }
+        }
+
+        if (isGrounded && obstacleCheckPoint != null && isChasing)
         {
             if (Physics.Raycast(obstacleCheckPoint.position, transform.forward, obstacleCheckDistance, groundLayer))
             {
@@ -100,26 +128,52 @@ public class EnemyAI : MonoBehaviour
     {
         if (!aiActive || playerTarget == null || isDashing) return;
 
-        moveDirection = (playerTarget.position - transform.position);
-        moveDirection.y = 0;
-        moveDirection.Normalize();
+        Vector3 targetVelocity = Vector3.zero;
 
-        Vector3 targetVelocity = moveDirection * moveSpeed;
+        // Only execute pathfinding mechanics if aggro lock is active
+        if (isChasing)
+        {
+            moveDirection = (playerTarget.position - transform.position);
+            moveDirection.y = 0;
+            moveDirection.Normalize();
+
+            float distanceToPlayer = Vector3.Distance(transform.position, playerTarget.position);
+
+            // --- RANGED COMBAT MOVEMENT SWEET-SPOT CONTROL ---
+            if (distanceToPlayer > maintainDistance)
+            {
+                // Player is far away; advance forward at normal pacing
+                targetVelocity = moveDirection * moveSpeed;
+            }
+            else if (distanceToPlayer < maintainDistance * 0.75f)
+            {
+                // Player is crowding the AI; back up smoothly to keep distance
+                targetVelocity = -moveDirection * (moveSpeed * 0.6f);
+            }
+            else
+            {
+                // Sweet spot reached; halt horizontal movement to stay firmly at range
+                targetVelocity = Vector3.zero;
+            }
+
+            // Keep facing the target even when standing still to attack from a distance
+            if (moveDirection != Vector3.zero)
+            {
+                Quaternion targetRotation = Quaternion.LookRotation(moveDirection);
+                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.fixedDeltaTime);
+            }
+        }
+
+        // Process physics locomotion forces
         Vector3 currentVelocity = rb.velocity;
         Vector3 velocityChange = targetVelocity - currentVelocity;
-
         velocityChange.y = 0;
+
         rb.AddForce(velocityChange, ForceMode.VelocityChange);
 
         if (rb.velocity.y < 0)
         {
             rb.velocity += Vector3.up * Physics.gravity.y * (fallMultiplier - 1) * Time.fixedDeltaTime;
-        }
-
-        if (moveDirection != Vector3.zero)
-        {
-            Quaternion targetRotation = Quaternion.LookRotation(moveDirection);
-            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.fixedDeltaTime);
         }
     }
 
@@ -163,6 +217,7 @@ public class EnemyAI : MonoBehaviour
 
     private void OnDrawGizmosSelected()
     {
+        // Draw standard ground lines
         Gizmos.color = Color.green;
         Gizmos.DrawLine(transform.position, transform.position + Vector3.down * groundCheckDistance);
 
@@ -171,5 +226,14 @@ public class EnemyAI : MonoBehaviour
             Gizmos.color = Color.blue;
             Gizmos.DrawLine(obstacleCheckPoint.position, obstacleCheckPoint.position + transform.forward * obstacleCheckDistance);
         }
+
+        // --- EDITOR SENSORY WIRE Visualizers ---
+        // Draws a light blue circle around your AI indicating the initial spotting threshold
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawWireSphere(transform.position, detectionRange);
+
+        // Draws a red circle around your AI showing the distance it tries to hold back at
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireSphere(transform.position, maintainDistance);
     }
 }

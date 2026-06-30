@@ -22,6 +22,11 @@ public class RocketLauncher : MonoBehaviour
     [Header("Dual-Aim Configuration")]
     public float longPressThreshold = 0.25f;
 
+    [Header("Audio Configurations")]
+    [Tooltip("The designated AudioSource attached to your launcher mesh object.")]
+    public AudioSource weaponAudioSource;
+    public AudioClip launchSoundClip;
+
     [Header("System Tracking States (Read Only)")]
     public Transform currentTarget;
     public bool isManualAimMode = false;
@@ -94,6 +99,12 @@ public class RocketLauncher : MonoBehaviour
         if (currentAmmo <= 0 || isReloading) return;
         currentAmmo--;
 
+        // Play weapon launch clip immediately on projectile exit
+        if (weaponAudioSource != null && launchSoundClip != null)
+        {
+            weaponAudioSource.PlayOneShot(launchSoundClip);
+        }
+
         Vector3 correctedSpawnPosition = firePoint.position + (firePoint.forward * barrelLengthOffset);
 
         Quaternion launchRotation;
@@ -111,7 +122,10 @@ public class RocketLauncher : MonoBehaviour
         GameObject rocket = Instantiate(projectilePrefab, correctedSpawnPosition, launchRotation);
 
         Collider shooterCollider = GetComponent<Collider>();
+
+        // FIXED TYPE COMPILER ERROR: Explicitly added 'Collider' keyword to define the data type container
         Collider rocketCollider = rocket.GetComponent<Collider>();
+
         if (shooterCollider != null && rocketCollider != null)
         {
             Physics.IgnoreCollision(rocketCollider, shooterCollider);
@@ -120,7 +134,6 @@ public class RocketLauncher : MonoBehaviour
         TrackingProjectile projScript = rocket.GetComponent<TrackingProjectile>();
         if (projScript != null)
         {
-            // PASS THE LIVE TARGET FOR DYNAMIC HOMING CHASE LOOPS!
             projScript.Initialize(currentTarget, gameObject, projectileSpeed);
         }
 

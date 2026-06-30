@@ -20,7 +20,6 @@ public class FloatingHealthBar : MonoBehaviour
 
         if (healthSlider != null)
         {
-            // OVERRIDE VALUES: Force the slider to normalize between 0.0 and 1.0
             healthSlider.minValue = 0f;
             healthSlider.maxValue = 1f;
 
@@ -29,7 +28,6 @@ public class FloatingHealthBar : MonoBehaviour
                 fillImage = healthSlider.fillRect.GetComponent<UnityEngine.UI.Image>();
             }
 
-            // Lock UI anchors to center bounds to stop the layout from stretching
             RectTransform rect = GetComponent<RectTransform>();
             if (rect != null)
             {
@@ -48,10 +46,8 @@ public class FloatingHealthBar : MonoBehaviour
         float hp = targetCharacter.currentHealth;
         float maxHp = targetCharacter.maxHealth;
 
-        // Feed the slider a clean fraction ratio value
         healthSlider.value = hp / maxHp;
 
-        // AUTOMATIC COLOR SYSTEM (Green -> Yellow -> Red)
         if (fillImage != null)
         {
             if (hp >= 65f)
@@ -68,17 +64,18 @@ public class FloatingHealthBar : MonoBehaviour
             }
         }
 
-        // Keep it positioned perfectly above the character's head
         Vector3 worldPoint = targetCharacter.transform.position + (Vector3.up * upwardPixelOffset);
         Vector3 screenPoint = Camera.main.WorldToScreenPoint(worldPoint);
 
+        // FIXED LIFECYCLE TRAP: Instead of turning off the GameObject (which freezes this script), 
+        // we hide it by casting its coordinates far off-screen out of the player's view!
         if (screenPoint.z < 0)
         {
-            healthSlider.gameObject.SetActive(false);
+            transform.position = new Vector3(-10000f, -10000f, 0f);
             return;
         }
 
-        healthSlider.gameObject.SetActive(true);
+        // Snap back to normal screen position tracking when the character is in view or respawns
         transform.position = screenPoint;
     }
 }

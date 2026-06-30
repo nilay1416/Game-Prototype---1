@@ -11,11 +11,19 @@ public class HealthAndRagdoll : MonoBehaviour
     public float fallThreshold = -10f;
 
     [Header("Automated UI Link")]
-    [Tooltip("Drag your FloatingHealthBar UI Prefab asset here. The script will handle creating slots for enemies automatically!")]
+    [Tooltip("Drag your FloatingHealthBar UI Prefab asset here.")]
     public GameObject healthBarPrefab;
 
     [Header("Stumble Settings")]
     public float baseStumbleDuration = 2f;
+
+    [Header("Dynamic Editor Knockback Multipliers")]
+    [Tooltip("Knockback force multiplier when health is Green (100% to 65%). Default: 0.35")]
+    public float greenTierKnockbackMultiplier = 0.35f;
+    [Tooltip("Knockback force multiplier when health is Yellow (64% to 30%). Default: 2.2")]
+    public float yellowTierKnockbackMultiplier = 2.2f;
+    [Tooltip("Knockback force multiplier when health is Red / Baseball Mode (Below 30%). Default: 8.5")]
+    public float redTierKnockbackMultiplier = 8.5f;
 
     private Rigidbody rb;
     private ThirdPersonController playerMove;
@@ -33,7 +41,6 @@ public class HealthAndRagdoll : MonoBehaviour
         spawnPoint = transform.position;
         currentHealth = maxHealth;
 
-        // AUTO-INITIALIZATION: Spawns the health bar for ALL characters automatically on frame 1
         if (healthBarPrefab != null)
         {
             Canvas mainCanvas = FindObjectOfType<Canvas>();
@@ -63,23 +70,20 @@ public class HealthAndRagdoll : MonoBehaviour
 
         currentHealth = Mathf.Max(0f, currentHealth - damageAmount);
 
-        // STUMBLE & KNOCKBACK INTENSITY MODIFIERS (Matching your exact chart)
+        // STUMBLE & KNOCKBACK INTENSITY MODIFIERS READ DIRECTLY FROM THE EDITOR
         float knockbackMultiplier = 1f;
 
         if (currentHealth >= 65f)
         {
-            // Green Tier: Minor stumble on the same position
-            knockbackMultiplier = 0.35f;
+            knockbackMultiplier = greenTierKnockbackMultiplier;
         }
         else if (currentHealth < 65f && currentHealth >= 30f)
         {
-            // Yellow Tier: Medium knockback, slides back a few meters
-            knockbackMultiplier = 2.2f;
+            knockbackMultiplier = yellowTierKnockbackMultiplier;
         }
         else if (currentHealth < 30f)
         {
-            // Red Tier: Baseball Home-Run Mode! Launched straight out of the map
-            knockbackMultiplier = 8.5f;
+            knockbackMultiplier = redTierKnockbackMultiplier;
         }
 
         TriggerRagdoll(baseKnockbackForce * knockbackMultiplier);
@@ -148,7 +152,6 @@ public class HealthAndRagdoll : MonoBehaviour
     {
         if (isRagdolled) return;
 
-        // 1. TRIP OBSTACLES: Fall Guys stumble style based on moving obstacle directions, NO damage
         if (collision.gameObject.CompareTag("TripObstacle"))
         {
             Vector3 stumblePushForce = (transform.position - collision.transform.position).normalized * 12f;
@@ -157,7 +160,6 @@ public class HealthAndRagdoll : MonoBehaviour
             StartCoroutine(RecoverFromStumble());
         }
 
-        // 2. DAMAGING TRAPS: Deducts exactly 20 HP and triggers health tracking scale updates
         if (collision.gameObject.CompareTag("DamagingTrap"))
         {
             Vector3 trapForce = (transform.position - collision.transform.position).normalized * 10f;
