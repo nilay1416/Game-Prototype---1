@@ -12,9 +12,7 @@ public class TrackingProjectile : MonoBehaviour
     public float predictionScale = 0.15f;
 
     [Header("Dodge & Balance Configurations")]
-    [Tooltip("Deactivates tracking if the rocket gets closer than this distance (in meters) to the target, allowing it to overshoot when you move/dash.")]
     public float homingDisableDistance = 5f;
-    [Tooltip("Maximum time (in seconds) the rocket is allowed to home in on the target before it gives up and flies completely straight.")]
     public float maxHomingDuration = 2.0f;
 
     [Header("Editor AoE & Control Values")]
@@ -24,7 +22,6 @@ public class TrackingProjectile : MonoBehaviour
     public float maxLifetime = 5f;
 
     [Header("Obstacle Cover Settings")]
-    [Tooltip("Select the Layers that should block explosion damage (e.g., Obstacles, Environment, Buildings).")]
     public LayerMask obstacleLayers;
 
     [Header("Visual Effects")]
@@ -38,7 +35,6 @@ public class TrackingProjectile : MonoBehaviour
     private Rigidbody rb;
     private bool hasExploded = false;
 
-    // Tracking variables for balance control loops
     private float activeHomingTimer = 0f;
     private bool trackingDeactivated = false;
 
@@ -74,14 +70,11 @@ public class TrackingProjectile : MonoBehaviour
             float currentDistance = Vector3.Distance(transform.position, target.position);
             activeHomingTimer += Time.fixedDeltaTime;
 
-            // --- BALANCED DODGE CHECK SYSTEM ---
-            // If the rocket gets too close OR has tracked for too long, permanently turn off tracking adjustments
             if (currentDistance <= homingDisableDistance || activeHomingTimer >= maxHomingDuration)
             {
                 trackingDeactivated = true;
             }
 
-            // Only update steering rotation angles if homing tracking is still active
             if (!trackingDeactivated)
             {
                 targetPredictionPoint = target.position;
@@ -103,7 +96,6 @@ public class TrackingProjectile : MonoBehaviour
             }
         }
 
-        // NO CHANGES TO PROJECTILE MOTION: Maintained the exact forward momentum implementation vector
         rb.velocity = transform.forward * speed;
     }
 
@@ -131,7 +123,7 @@ public class TrackingProjectile : MonoBehaviour
 
         rb.velocity = Vector3.zero;
         rb.isKinematic = true;
-        GetComponent<Collider>().enabled = false;
+        if (GetComponent<Collider>() != null) GetComponent<Collider>().enabled = false;
 
         MeshRenderer renderer = GetComponentInChildren<MeshRenderer>();
         if (renderer != null) renderer.enabled = false;
@@ -141,7 +133,7 @@ public class TrackingProjectile : MonoBehaviour
             Instantiate(explosionParticlePrefab, transform.position, Quaternion.identity);
         }
 
-        // Purple visual area sphere overlay
+        // --- WEBGL COMPATIBLE PURPLE RADIUS INDICATOR ---
         GameObject purpleSphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         purpleSphere.transform.position = transform.position;
         purpleSphere.transform.localScale = Vector3.one * (explosionRadius * 2f);
@@ -150,17 +142,29 @@ public class TrackingProjectile : MonoBehaviour
         Renderer sphereRender = purpleSphere.GetComponent<Renderer>();
         if (sphereRender != null)
         {
-            Material transparentMat = new Material(Shader.Find("Standard"));
-            transparentMat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-            transparentMat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-            transparentMat.SetInt("_ZWrite", 0);
-            transparentMat.EnableKeyword("_ALPHABLEND_ON");
-            transparentMat.renderQueue = 3000;
+            Shader webGLShader = Shader.Find("Standard");
 
-            transparentMat.color = new Color(0.55f, 0.0f, 1.0f, 0.35f);
-            sphereRender.material = transparentMat;
+            // WEBGL SAFETY ANCHOR: If the browser optimization engine stripped the shader, 
+            // fallback directly to modifying the default material color instance to prevent game loops from crashing!
+            if (webGLShader != null)
+            {
+                Material transparentMat = new Material(webGLShader);
+                transparentMat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                transparentMat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                transparentMat.SetInt("_ZWrite", 0);
+                transparentMat.EnableKeyword("_ALPHABLEND_ON");
+                transparentMat.renderQueue = 3000;
+                transparentMat.color = new Color(0.55f, 0.0f, 1.0f, 0.35f);
+                sphereRender.material = transparentMat;
+            }
+            else
+            {
+                // Native runtime material assignment fallback
+                sphereRender.material.color = new Color(0.55f, 0.0f, 1.0f, 0.5f);
+            }
         }
         Destroy(purpleSphere, 0.4f);
+        // ------------------------------------------------
 
         Collider[] hitColliders = Physics.OverlapSphere(transform.position, explosionRadius);
         HashSet<HealthAndRagdoll> uniqueVictims = new HashSet<HealthAndRagdoll>();

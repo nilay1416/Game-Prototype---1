@@ -5,235 +5,234 @@ using UnityEngine;
 [RequireComponent(typeof(Rigidbody))]
 public class EnemyAI : MonoBehaviour
 {
+    [Header("Spawn & Respawn Settings")]
+    [Tooltip("If checked, this enemy will respawn normally. If unchecked, they will die permanently and will not come back.")]
+    public bool respawnAfterDeath = true;
+
     [Header("Target Tracking & Senses")]
-    public Transform playerTarget;
+    public Transform playerTarget; //[cite: 13]
     [Tooltip("How close the player must get to alert the AI for the first time.")]
-    public float detectionRange = 25f;
+    public float detectionRange = 25f; //[cite: 13]
     [Tooltip("The sweet-spot distance the AI tries to maintain to shoot from afar without getting too close.")]
-    public float maintainDistance = 10f;
+    public float maintainDistance = 10f; //[cite: 13]
     [Tooltip("Matches the player's top movement speed.")]
-    public float moveSpeed = 14f;
+    public float moveSpeed = 14f; //[cite: 13]
     [Tooltip("How fast the AI turns to face its movement vector.")]
-    public float rotationSpeed = 15f;
-    public float shootingRange = 15f;
-    public float attackRate = 3f;
+    public float rotationSpeed = 15f; //[cite: 13]
+    public float shootingRange = 15f; //[cite: 13]
+    public float attackRate = 3f; //[cite: 13]
 
     [Header("Snappy Jump Settings")]
-    public float jumpForce = 14f;
+    public float jumpForce = 14f; //[cite: 13]
     [Tooltip("Brings the AI down to earth quickly, matching player gravity properties.")]
-    public float fallMultiplier = 3.5f;
-    public float groundCheckDistance = 1.1f;
-    public LayerMask groundLayer;
+    public float fallMultiplier = 3.5f; //[cite: 13]
+    public float groundCheckDistance = 1.1f; //[cite: 13]
+    public LayerMask groundLayer; //[cite: 13]
 
     [Header("AI Jump Navigation")]
     [Tooltip("Point near the shins/knees to check for walls or hurdles.")]
-    public Transform obstacleCheckPoint;
+    public Transform obstacleCheckPoint; //[cite: 13]
     [Tooltip("How far forward the AI checks for walls on the Ground layer to jump.")]
-    public float obstacleCheckDistance = 1.2f;
+    public float obstacleCheckDistance = 1.2f; //[cite: 13]
 
     [Header("Distance-Based Dash")]
-    public bool enableAIDashing = true;
-    public float dashDistance = 8f;
-    public float dashDuration = 0.15f;
-    public float dashCooldown = 2.5f;
+    public bool enableAIDashing = true; //[cite: 13]
+    public float dashDistance = 8f; //[cite: 13]
+    public float dashDuration = 0.15f; //[cite: 13]
+    public float dashCooldown = 2.5f; //[cite: 13]
 
     [Header("Tracking Status Tracking (Read Only)")]
-    public bool isChasing = false;
-    public bool isGrounded;
+    public bool isChasing = false; //[cite: 13]
+    public bool isGrounded; //[cite: 13]
 
-    private Rigidbody rb;
-    private RocketLauncher launcher;
-    private HealthAndRagdoll playerHealth;
-    private Vector3 moveDirection;
+    private Rigidbody rb; //[cite: 13]
+    private RocketLauncher launcher; //[cite: 13]
+    private HealthAndRagdoll playerHealth; //[cite: 13]
+    private HealthAndRagdoll myOwnHealth; // Internal reference to watch its own vital states
+    private Vector3 moveDirection; //[cite: 13]
 
-    private bool canDash = true;
-    private bool isDashing = false;
-    private bool aiActive = true;
-    private float attackTimer;
+    private bool canDash = true; //[cite: 13]
+    private bool isDashing = false; //[cite: 13]
+    private bool aiActive = true; //[cite: 13]
+    private float attackTimer; //[cite: 13]
 
     void Start()
     {
-        rb = GetComponent<Rigidbody>();
-        launcher = GetComponent<RocketLauncher>();
+        rb = GetComponent<Rigidbody>(); //[cite: 13]
+        launcher = GetComponent<RocketLauncher>(); //[cite: 13]
+        myOwnHealth = GetComponent<HealthAndRagdoll>(); // Grab own health manager component
 
-        rb.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
+        rb.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ; //[cite: 13]
 
-        if (playerTarget == null)
+        if (playerTarget == null) //[cite: 13]
         {
-            GameObject player = GameObject.FindGameObjectWithTag("Player");
-            if (player != null) playerTarget = player.transform;
+            GameObject player = GameObject.FindGameObjectWithTag("Player"); //[cite: 13]
+            if (player != null) playerTarget = player.transform; //[cite: 13]
         }
 
-        // Cache the player's health reference to monitor death states cleanly
-        if (playerTarget != null)
+        if (playerTarget != null) //[cite: 13]
         {
-            playerHealth = playerTarget.GetComponent<HealthAndRagdoll>();
+            playerHealth = playerTarget.GetComponent<HealthAndRagdoll>(); //[cite: 13]
         }
     }
 
     void Update()
     {
-        if (!aiActive || playerTarget == null) return;
-
-        isGrounded = Physics.Raycast(transform.position, Vector3.down, groundCheckDistance, groundLayer);
-
-        float distanceToPlayer = Vector3.Distance(transform.position, playerTarget.position);
-
-        // --- RESET AGGRO SYSTEM UPON PLAYER DEATH ---
-        if (playerHealth != null && playerHealth.currentHealth <= 0f)
+        // --- PERMANENT DEATH CHECK ---
+        // If the user turned off respawning for this enemy, and they are out of health, 
+        // completely destroy the GameObject before the other script's respawn timer triggers!
+        if (!respawnAfterDeath && myOwnHealth != null && myOwnHealth.currentHealth <= 0f)
         {
-            isChasing = false;
+            Destroy(gameObject);
+            return;
         }
 
-        // --- SENSORY DETECTION CHECK ---
-        if (!isChasing)
+        if (!aiActive || playerTarget == null) return; //[cite: 13]
+
+        isGrounded = Physics.Raycast(transform.position, Vector3.down, groundCheckDistance, groundLayer); //[cite: 13]
+
+        float distanceToPlayer = Vector3.Distance(transform.position, playerTarget.position); //[cite: 13]
+
+        if (playerHealth != null && playerHealth.currentHealth <= 0f) //[cite: 13]
         {
-            // Only trigger chase state if player is within range and alive
-            if (distanceToPlayer <= detectionRange && (playerHealth == null || playerHealth.currentHealth > 0f))
+            isChasing = false; //[cite: 13]
+        }
+
+        if (!isChasing) //[cite: 13]
+        {
+            if (distanceToPlayer <= detectionRange && (playerHealth == null || playerHealth.currentHealth > 0f)) //[cite: 13]
             {
-                isChasing = true;
+                isChasing = true; //[cite: 13]
             }
         }
 
-        // Only fire weapons if AI has actively spotted the player
-        if (isChasing)
+        if (isChasing) //[cite: 13]
         {
-            attackTimer += Time.deltaTime;
+            attackTimer += Time.deltaTime; //[cite: 13]
 
-            if (distanceToPlayer <= shootingRange && attackTimer >= attackRate && !isDashing)
+            if (distanceToPlayer <= shootingRange && attackTimer >= attackRate && !isDashing) //[cite: 13]
             {
-                if (launcher != null)
+                if (launcher != null) //[cite: 13]
                 {
-                    launcher.TryFire(playerTarget);
+                    launcher.TryFire(playerTarget); //[cite: 13]
                 }
-                attackTimer = 0f;
+                attackTimer = 0f; //[cite: 13]
             }
 
-            if (enableAIDashing && canDash && !isDashing && distanceToPlayer > shootingRange)
+            if (enableAIDashing && canDash && !isDashing && distanceToPlayer > shootingRange) //[cite: 13]
             {
-                StartCoroutine(PerformAIDistanceDash());
+                StartCoroutine(PerformAIDistanceDash()); //[cite: 13]
             }
         }
 
-        if (isGrounded && obstacleCheckPoint != null && isChasing)
+        if (isGrounded && obstacleCheckPoint != null && isChasing) //[cite: 13]
         {
-            if (Physics.Raycast(obstacleCheckPoint.position, transform.forward, obstacleCheckDistance, groundLayer))
+            if (Physics.Raycast(obstacleCheckPoint.position, transform.forward, obstacleCheckDistance, groundLayer)) //[cite: 13]
             {
-                Jump();
+                Jump(); //[cite: 13]
             }
         }
     }
 
     void FixedUpdate()
     {
-        if (!aiActive || playerTarget == null || isDashing) return;
+        if (!aiActive || playerTarget == null || isDashing) return; //[cite: 13]
 
-        Vector3 targetVelocity = Vector3.zero;
+        Vector3 targetVelocity = Vector3.zero; //[cite: 13]
 
-        // Only execute pathfinding mechanics if aggro lock is active
-        if (isChasing)
+        if (isChasing) //[cite: 13]
         {
-            moveDirection = (playerTarget.position - transform.position);
-            moveDirection.y = 0;
-            moveDirection.Normalize();
+            moveDirection = (playerTarget.position - transform.position); //[cite: 13]
+            moveDirection.y = 0; //[cite: 13]
+            moveDirection.Normalize(); //[cite: 13]
 
-            float distanceToPlayer = Vector3.Distance(transform.position, playerTarget.position);
+            float distanceToPlayer = Vector3.Distance(transform.position, playerTarget.position); //[cite: 13]
 
-            // --- RANGED COMBAT MOVEMENT SWEET-SPOT CONTROL ---
-            if (distanceToPlayer > maintainDistance)
+            if (distanceToPlayer > maintainDistance) //[cite: 13]
             {
-                // Player is far away; advance forward at normal pacing
-                targetVelocity = moveDirection * moveSpeed;
+                targetVelocity = moveDirection * moveSpeed; //[cite: 13]
             }
-            else if (distanceToPlayer < maintainDistance * 0.75f)
+            else if (distanceToPlayer < maintainDistance * 0.75f) //[cite: 13]
             {
-                // Player is crowding the AI; back up smoothly to keep distance
-                targetVelocity = -moveDirection * (moveSpeed * 0.6f);
+                targetVelocity = -moveDirection * (moveSpeed * 0.6f); //[cite: 13]
             }
-            else
+            else //[cite: 13]
             {
-                // Sweet spot reached; halt horizontal movement to stay firmly at range
-                targetVelocity = Vector3.zero;
+                targetVelocity = Vector3.zero; //[cite: 13]
             }
 
-            // Keep facing the target even when standing still to attack from a distance
-            if (moveDirection != Vector3.zero)
+            if (moveDirection != Vector3.zero) //[cite: 13]
             {
-                Quaternion targetRotation = Quaternion.LookRotation(moveDirection);
-                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.fixedDeltaTime);
+                Quaternion targetRotation = Quaternion.LookRotation(moveDirection); //[cite: 13]
+                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.fixedDeltaTime); //[cite: 13]
             }
         }
 
-        // Process physics locomotion forces
-        Vector3 currentVelocity = rb.velocity;
-        Vector3 velocityChange = targetVelocity - currentVelocity;
-        velocityChange.y = 0;
+        Vector3 currentVelocity = rb.velocity; //[cite: 13]
+        Vector3 velocityChange = targetVelocity - currentVelocity; //[cite: 13]
+        velocityChange.y = 0; //[cite: 13]
 
-        rb.AddForce(velocityChange, ForceMode.VelocityChange);
+        rb.AddForce(velocityChange, ForceMode.VelocityChange); //[cite: 13]
 
-        if (rb.velocity.y < 0)
+        if (rb.velocity.y < 0) //[cite: 13]
         {
-            rb.velocity += Vector3.up * Physics.gravity.y * (fallMultiplier - 1) * Time.fixedDeltaTime;
+            rb.velocity += Vector3.up * Physics.gravity.y * (fallMultiplier - 1) * Time.fixedDeltaTime; //[cite: 13]
         }
     }
 
     void Jump()
     {
-        rb.velocity = new Vector3(rb.velocity.x, 0f, rb.velocity.z);
-        rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+        rb.velocity = new Vector3(rb.velocity.x, 0f, rb.velocity.z); //[cite: 13]
+        rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse); //[cite: 13]
     }
 
     IEnumerator PerformAIDistanceDash()
     {
-        canDash = false;
+        canDash = false; //[cite: 13]
 
-        Vector3 dashHeading = moveDirection != Vector3.zero ? moveDirection : transform.forward;
-        dashHeading.y = 0;
-        dashHeading.Normalize();
+        Vector3 dashHeading = moveDirection != Vector3.zero ? moveDirection : transform.forward; //[cite: 13]
+        dashHeading.y = 0; //[cite: 13]
+        dashHeading.Normalize(); //[cite: 13]
 
-        float dashVelocity = dashDistance / dashDuration;
-        float elapsedTime = 0f;
+        float dashVelocity = dashDistance / dashDuration; //[cite: 13]
+        float elapsedTime = 0f; //[cite: 13]
 
-        while (elapsedTime < dashDuration)
+        while (elapsedTime < dashDuration) //[cite: 13]
         {
-            isDashing = true;
-            rb.velocity = dashHeading * dashVelocity;
-            elapsedTime += Time.deltaTime;
-            yield return null;
+            isDashing = true; //[cite: 13]
+            rb.velocity = dashHeading * dashVelocity; //[cite: 13]
+            elapsedTime += Time.deltaTime; //[cite: 13]
+            yield return null; //[cite: 13]
         }
 
-        rb.velocity = new Vector3(0f, rb.velocity.y, 0f);
-        isDashing = false;
+        rb.velocity = new Vector3(0f, rb.velocity.y, 0f); //[cite: 13]
+        isDashing = false; //[cite: 13]
 
-        yield return new WaitForSeconds(dashCooldown);
-        canDash = true;
+        yield return new WaitForSeconds(dashCooldown); //[cite: 13]
+        canDash = true; //[cite: 13]
     }
 
     public void SetControllable(bool state)
     {
-        aiActive = state;
-        if (!state) isDashing = false;
+        aiActive = state; //[cite: 13]
+        if (!state) isDashing = false; //[cite: 13]
     }
 
     private void OnDrawGizmosSelected()
     {
-        // Draw standard ground lines
-        Gizmos.color = Color.green;
-        Gizmos.DrawLine(transform.position, transform.position + Vector3.down * groundCheckDistance);
+        Gizmos.color = Color.green; //[cite: 13]
+        Gizmos.DrawLine(transform.position, transform.position + Vector3.down * groundCheckDistance); //[cite: 13]
 
-        if (obstacleCheckPoint != null)
+        if (obstacleCheckPoint != null) //[cite: 13]
         {
-            Gizmos.color = Color.blue;
-            Gizmos.DrawLine(obstacleCheckPoint.position, obstacleCheckPoint.position + transform.forward * obstacleCheckDistance);
+            Gizmos.color = Color.blue; //[cite: 13]
+            Gizmos.DrawLine(obstacleCheckPoint.position, obstacleCheckPoint.position + transform.forward * obstacleCheckDistance); //[cite: 13]
         }
 
-        // --- EDITOR SENSORY WIRE Visualizers ---
-        // Draws a light blue circle around your AI indicating the initial spotting threshold
-        Gizmos.color = Color.cyan;
-        Gizmos.DrawWireSphere(transform.position, detectionRange);
+        Gizmos.color = Color.cyan; //[cite: 13]
+        Gizmos.DrawWireSphere(transform.position, detectionRange); //[cite: 13]
 
-        // Draws a red circle around your AI showing the distance it tries to hold back at
-        Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(transform.position, maintainDistance);
+        Gizmos.color = Color.red; //[cite: 13]
+        Gizmos.DrawWireSphere(transform.position, maintainDistance); //[cite: 13]
     }
 }

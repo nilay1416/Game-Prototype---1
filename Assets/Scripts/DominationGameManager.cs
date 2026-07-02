@@ -15,15 +15,14 @@ public class DominationGameManager : MonoBehaviour
     public TextMeshProUGUI scoreText;
     public GameObject pauseMenuUI;
     public GameObject endGameMenuUI;
-    [Tooltip("Drag your newly created Controls Panel UI GameObject here!")]
-    public GameObject controlsMenuUI; // <-- NEW: Controls panel slot
+    public GameObject controlsMenuUI;
 
     [Header("Scene Navigation Link")]
     public string homeSceneName = "HomeScene";
 
     private bool isPaused = false;
     private bool isGameOver = false;
-    private bool isControlsOpen = false; // <-- NEW: Tracks controls panel state
+    private bool isControlsOpen = false;
 
     void Awake()
     {
@@ -33,23 +32,34 @@ public class DominationGameManager : MonoBehaviour
 
     void Start()
     {
-        // Ensure all UI panels are cleanly hidden when starting the match
         if (pauseMenuUI != null) pauseMenuUI.SetActive(false);
         if (endGameMenuUI != null) endGameMenuUI.SetActive(false);
-        if (controlsMenuUI != null) controlsMenuUI.SetActive(false); // <-- NEW
+        if (controlsMenuUI != null) controlsMenuUI.SetActive(false);
 
         Time.timeScale = 1f;
         UpdateScoreUI();
+
+        SetCursorState(true);
     }
 
     void Update()
     {
+        // --- WEBGL BROWSER INTERACTIVE POINTER LOCK TRIGGER ---
+        // If the game is active, and the browser drops cursor containment, 
+        // click back inside the gameplay frame to re-engage 360 camera freedom.
+        if (!isPaused && !isGameOver && !isControlsOpen)
+        {
+            if (Input.GetMouseButtonDown(0) && Cursor.lockState != CursorLockMode.Locked)
+            {
+                SetCursorState(true);
+            }
+        }
+        // ------------------------------------------------------
+
         if (isGameOver) return;
 
-        // 1. ESCAPE KEY: Toggles standard Pause Menu
         if (Input.GetKeyDown(KeyCode.Escape))
         {
-            // If controls panel is open, close it first instead of opening double menus
             if (isControlsOpen)
             {
                 CloseControlsMenu();
@@ -61,7 +71,6 @@ public class DominationGameManager : MonoBehaviour
             }
         }
 
-        // 2. 'C' KEY: Toggles the Controls Panel
         if (Input.GetKeyDown(KeyCode.C) && !isPaused)
         {
             if (isControlsOpen) CloseControlsMenu();
@@ -90,12 +99,30 @@ public class DominationGameManager : MonoBehaviour
         }
     }
 
-    // --- PAUSE MENU ACTIONS ---
+    private void SetCursorState(bool lockState)
+    {
+        if (lockState)
+        {
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+        }
+        else
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
+    }
+
     public void PauseGame()
     {
         isPaused = true;
-        if (pauseMenuUI != null) pauseMenuUI.SetActive(true);
+        if (pauseMenuUI != null)
+        {
+            pauseMenuUI.SetActive(true);
+            pauseMenuUI.transform.SetAsLastSibling();
+        }
         Time.timeScale = 0f;
+        SetCursorState(false);
     }
 
     public void ResumeGame()
@@ -103,48 +130,57 @@ public class DominationGameManager : MonoBehaviour
         isPaused = false;
         if (pauseMenuUI != null) pauseMenuUI.SetActive(false);
         Time.timeScale = 1f;
+        SetCursorState(true);
     }
 
-    // --- NEW: CONTROLS PANEL ACTIONS ---
     public void OpenControlsMenu()
     {
         isControlsOpen = true;
-        if (controlsMenuUI != null) controlsMenuUI.SetActive(true);
-        Time.timeScale = 0f; // Pauses physics and game loops while looking at controls
+        if (controlsMenuUI != null)
+        {
+            controlsMenuUI.SetActive(true);
+            controlsMenuUI.transform.SetAsLastSibling();
+        }
+        Time.timeScale = 0f;
+        SetCursorState(false);
     }
 
     public void CloseControlsMenu()
     {
         isControlsOpen = false;
         if (controlsMenuUI != null) controlsMenuUI.SetActive(false);
-        Time.timeScale = 1f; // Resumes the game smoothly
+        Time.timeScale = 1f;
+        SetCursorState(true);
     }
 
     void WinGameLoop()
     {
         isGameOver = true;
         Time.timeScale = 0f;
-        if (endGameMenuUI != null) endGameMenuUI.SetActive(true);
+        if (endGameMenuUI != null)
+        {
+            endGameMenuUI.SetActive(true);
+            endGameMenuUI.transform.SetAsLastSibling();
+        }
+        SetCursorState(false);
     }
 
-    // --- INTERACTION BUTTON HOOKS ---
     public void RestartGame()
     {
-        Debug.Log("Restarting match...");
         Time.timeScale = 1f;
+        CheckpointManager.ResetToFirstCheckpoint();
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 
     public void GoToHome()
     {
-        Debug.Log("Returning to main menu...");
         Time.timeScale = 1f;
+        SetCursorState(false);
         SceneManager.LoadScene(homeSceneName);
     }
 
     public void ExitGame()
     {
-        Debug.Log("Exiting Game Application...");
         Application.Quit();
     }
 }
